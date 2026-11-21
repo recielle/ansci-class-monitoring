@@ -1,0 +1,772 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: attendance
+    description: RFID attendance operations
+  - name: students
+    description: Student directory operations
+  - name: auth
+    description: Authentication and role access operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /auth/me:
+    get:
+      operationId: getAuthMe
+      tags: [auth]
+      summary: Get the current user and visible students
+      description: Returns the signed-in user's role and the students that role can access
+      responses:
+        "200":
+          description: Current authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMeResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated user is not registered for this school
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /students:
+    get:
+      operationId: listStudents
+      tags: [students]
+      summary: List students
+      description: Returns all students for staff, or only linked students for parents and students
+      responses:
+        "200":
+          description: Student list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Student"
+  /attendance/summary:
+    get:
+      operationId: getAttendanceSummary
+      tags: [attendance]
+      summary: Get today's attendance summary
+      description: Returns attendance totals and grouped grade counts for the requested school date
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Attendance summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceSummary"
+  /attendance/records:
+    get:
+      operationId: listAttendanceRecords
+      tags: [attendance]
+      summary: List attendance records
+      description: Returns the current attendance state for each student on the requested school date
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [present, late, absent, checked-out]
+      responses:
+        "200":
+          description: Attendance records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceRecord"
+  /attendance/recent:
+    get:
+      operationId: listRecentAttendance
+      tags: [attendance]
+      summary: List recent RFID activity
+      description: Returns the latest tap events from attendance devices
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 8
+      responses:
+        "200":
+          description: Recent attendance activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceEvent"
+  /attendance/taps:
+    post:
+      operationId: createAttendanceTap
+      tags: [attendance]
+      summary: Receive an RFID tap
+      description: Records a tap-in or tap-out event from an RFID reader; staff access only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceTapInput"
+      responses:
+        "201":
+          description: Recorded attendance event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceEvent"
+        "404":
+          description: RFID card is not registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid tap payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /attendance/location/status:
+    get:
+      operationId: getStudentLocationStatus
+      tags: [attendance]
+      summary: Get the current student's location-sharing status
+      description: Requires a student account. Sharing is active after checkout until check-in the next day, and only while the student page remains open.
+      responses:
+        "200":
+          description: Student location-sharing status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentLocationStatus"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Student role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /attendance/location/pings:
+    post:
+      operationId: createStudentLocationPing
+      tags: [attendance]
+      summary: Save the signed-in student's GPS location
+      description: Requires a student account with an active checkout. The server derives the student and timestamp from the session and server clock.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationPingInput"
+      responses:
+        "201":
+          description: Location ping saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationPing"
+        "400":
+          description: Invalid latitude or longitude
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Student role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Student is no longer checked out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Pings must be at least 30 seconds apart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /attendance/location/latest:
+    get:
+      operationId: listLatestStudentLocations
+      tags: [attendance]
+      summary: List visible students' latest locations
+      description: Parents receive only linked children; staff receive all students. The response includes each student's latest ping, not the ping history.
+      responses:
+        "200":
+          description: Latest visible student locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudentLatestLocation"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Parent or staff role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /attendance/students/{studentId}/home-location:
+    put:
+      operationId: updateStudentHomeLocation
+      tags: [attendance]
+      summary: Set a linked child's home coordinates
+      description: Parent accounts can set home coordinates only for children linked through student_parents.
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentHomeLocationInput"
+      responses:
+        "200":
+          description: Home coordinates saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentHomeLocationResponse"
+        "400":
+          description: Invalid latitude or longitude
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Parent role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Child is not linked to this parent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /attendance/qr-tokens:
+    post:
+      operationId: createDailyQrToken
+      tags: [attendance]
+      summary: Create a daily QR token for a visible student
+      description: Creates a signed token that expires at the end of the current school date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DailyQrTokenInput"
+      responses:
+        "200":
+          description: Signed daily QR token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyQrToken"
+        "400":
+          description: Invalid student ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Student not found or outside the user's scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: QR signing is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /attendance/qr/verify:
+    post:
+      operationId: verifyDailyQrToken
+      tags: [attendance]
+      summary: Verify a daily QR token and record an attendance event
+      description: Scanner endpoint protected by the DEVICE_API_KEY header
+      security:
+        - DeviceApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyDailyQrTokenInput"
+      responses:
+        "201":
+          description: Attendance event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceEvent"
+        "400":
+          description: Invalid request or malformed QR token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Device key is missing or invalid, or QR signature is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Student in the QR token no longer exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: QR token has expired or is for another school date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Device API key or QR signing is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /attendance/qr/staff-verify:
+    post:
+      operationId: verifyDailyQrTokenAsStaff
+      tags: [attendance]
+      summary: Verify a daily QR token from the staff scanner
+      description: Requires a signed-in school staff account; records the same attendance event as the device scanner endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyDailyQrTokenInput"
+      responses:
+        "201":
+          description: Attendance event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceEvent"
+        "400":
+          description: Invalid request or malformed QR token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication required or QR signature is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Staff role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Student in the QR token no longer exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: QR token has expired or is for another school date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: QR signing is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    DeviceApiKey:
+      type: apiKey
+      in: header
+      name: X-Device-Api-Key
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Student:
+      type: object
+      properties:
+        id:
+          type: integer
+        cardUid:
+          type: string
+        fullName:
+          type: string
+        grade:
+          type: string
+        section:
+          type: string
+        homeLocation:
+          oneOf:
+            - $ref: "#/components/schemas/HomeLocation"
+            - type: "null"
+        status:
+          type: string
+          enum: [on_campus, checked_out, late, unaccounted]
+      required: [id, cardUid, fullName, grade, section, homeLocation, status]
+    HomeLocation:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+      required: [latitude, longitude]
+    StudentLocationStatus:
+      type: object
+      properties:
+        active:
+          type: boolean
+        state:
+          type: string
+          enum: [no_checkout, checked_out, checked_in, checkout_expired]
+        lastAttendanceAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+      required: [active, state, lastAttendanceAt]
+    LocationPingInput:
+      type: object
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+      required: [latitude, longitude]
+    LocationPing:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: integer
+        latitude:
+          type: number
+        longitude:
+          type: number
+        pingedAt:
+          type: string
+          format: date-time
+      required: [id, studentId, latitude, longitude, pingedAt]
+    StudentLatestLocation:
+      type: object
+      properties:
+        studentId:
+          type: integer
+        studentName:
+          type: string
+        grade:
+          type: string
+        section:
+          type: string
+        latitude:
+          oneOf:
+            - type: number
+            - type: "null"
+        longitude:
+          oneOf:
+            - type: number
+            - type: "null"
+        pingedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        trackingActive:
+          type: boolean
+        homeLocation:
+          oneOf:
+            - $ref: "#/components/schemas/HomeLocation"
+            - type: "null"
+      required: [studentId, studentName, grade, section, latitude, longitude, pingedAt, trackingActive, homeLocation]
+    StudentHomeLocationInput:
+      type: object
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+      required: [latitude, longitude]
+    StudentHomeLocationResponse:
+      type: object
+      properties:
+        studentId:
+          type: integer
+        homeLocation:
+          $ref: "#/components/schemas/HomeLocation"
+      required: [studentId, homeLocation]
+    AuthMeResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [student, parent, staff]
+        visibleStudents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Student"
+      required: [userId, email, displayName, role, visibleStudents]
+    AttendanceEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: integer
+        studentName:
+          type: string
+        grade:
+          type: string
+        section:
+          type: string
+        cardUid:
+          type: string
+        deviceId:
+          type: string
+        action:
+          type: string
+          enum: [in, out]
+        occurredAt:
+          type: string
+          format: date-time
+      required: [id, studentId, studentName, grade, section, cardUid, deviceId, action, occurredAt]
+    AttendanceRecord:
+      type: object
+      properties:
+        studentId:
+          type: integer
+        studentName:
+          type: string
+        grade:
+          type: string
+        section:
+          type: string
+        cardUid:
+          type: string
+        status:
+          type: string
+          enum: [present, late, absent, checked-out]
+        firstTapAt:
+          type: ["string", "null"]
+          format: date-time
+        lastTapAt:
+          type: ["string", "null"]
+          format: date-time
+        deviceId:
+          type: ["string", "null"]
+      required: [studentId, studentName, grade, section, cardUid, status, firstTapAt, lastTapAt, deviceId]
+    AttendanceSummary:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        totalStudents:
+          type: integer
+        present:
+          type: integer
+        late:
+          type: integer
+        absent:
+          type: integer
+        checkedOut:
+          type: integer
+        attendanceRate:
+          type: number
+          format: float
+        lastSyncAt:
+          type: string
+          format: date-time
+        byGrade:
+          type: array
+          items:
+            $ref: "#/components/schemas/GradeAttendance"
+      required: [date, totalStudents, present, late, absent, checkedOut, attendanceRate, lastSyncAt, byGrade]
+    GradeAttendance:
+      type: object
+      properties:
+        grade:
+          type: string
+        present:
+          type: integer
+        absent:
+          type: integer
+        total:
+          type: integer
+      required: [grade, present, absent, total]
+    AttendanceTapInput:
+      type: object
+      properties:
+        cardUid:
+          type: string
+          minLength: 1
+        deviceId:
+          type: string
+          minLength: 1
+        action:
+          type: string
+          enum: [in, out]
+        occurredAt:
+          type: ["string", "null"]
+          format: date-time
+      required: [cardUid, deviceId, action]
+    DailyQrTokenInput:
+      type: object
+      properties:
+        studentId:
+          type: integer
+          minimum: 1
+      required: [studentId]
+    DailyQrToken:
+      type: object
+      properties:
+        token:
+          type: string
+        studentId:
+          type: integer
+        studentName:
+          type: string
+        date:
+          type: string
+          format: date
+        expiresAt:
+          type: string
+          format: date-time
+      required: [token, studentId, studentName, date, expiresAt]
+    VerifyDailyQrTokenInput:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+        action:
+          type: string
+          enum: [in, out]
+      required: [token, action]
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
