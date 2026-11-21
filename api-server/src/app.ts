@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import path from "path";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
@@ -46,5 +47,12 @@ app.use(
 );
 
 app.use("/api", router);
+
+// Serve the built React frontend directly from the same server (Eliminates 502 Bad Gateway!)
+const frontendDist = path.resolve(process.cwd(), "artifacts/rfid-attendance/dist/public");
+app.use(express.static(frontendDist));
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
 
 export default app;
