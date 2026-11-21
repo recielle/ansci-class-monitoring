@@ -1,0 +1,1 @@
+{"version":3,"file":"studentHomeLocationResponse.d.ts","sourceRoot":"","sources":["../../../src/generated/types/studentHomeLocationResponse.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AACH,OAAO,KAAK,EAAE,YAAY,EAAE,MAAM,gBAAgB,CAAC;AAEnD,MAAM,WAAW,2BAA2B;IAC1C,SAAS,EAAE,MAAM,CAAC;IAClB,YAAY,EAAE,YAAY,CAAC;CAC5B"}

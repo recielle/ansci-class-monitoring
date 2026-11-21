@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "RFID Attendance"
+description = "A school RFID attendance system with an Express API for tap-in and tap-out events, persistent attendance records, and a dashboard for monitoring student presence in real time."
+version = "1.0.0"
+id = "artifacts/rfid-attendance"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25268
+
+[services.development]
+run = "pnpm --filter @workspace/rfid-attendance run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/rfid-attendance", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/rfid-attendance/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25268"
+BASE_PATH = "/"
